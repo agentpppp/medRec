@@ -7,6 +7,9 @@ interface Patient {
   email: string | null;
   age: string;
   phone: string | null;
+  gender: string | null;
+  address: string | null;
+  emergencyContact: string | null;
   created_at: string;
 }
 
@@ -24,18 +27,21 @@ const PatientSql = () => {
       setLoading(true);
       setError(null);
       
+      let result;
       if (customQueryMode) {
-        const result = await executeQuery(sqlQuery);
+        result = await executeQuery(sqlQuery);
         if (result.success) {
           setPatients(result.data);
         } else {
-          throw new Error(result.error);
+          throw new Error(result.error || 'Query execution failed');
         }
       } else {
-        setPatients(await getAllPatients());
+        result = await getAllPatients();
+        setPatients(result);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
+      setPatients([]);
     } finally {
       setLoading(false);
     }
@@ -43,22 +49,44 @@ const PatientSql = () => {
 
   useEffect(() => {
     fetchData();
-  }, [customQueryMode]);
+  }, [customQueryMode]); // Only run when customQueryMode changes
 
   const handleQuerySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchData();
   };
 
+  // Get all possible columns from the first non-empty patient
+  const getColumns = () => {
+    if (patients.length === 0) return [];
+    
+    // Find first patient with data
+    const patientWithData = patients.find(p => p !== null);
+    if (!patientWithData) return [];
+    
+    return Object.keys(patientWithData);
+  };
+
+  const formatValue = (value: any) => {
+    if (value === null || value === undefined) return '-';
+    
+    // Check if value is a date string
+    if (typeof value === 'string' && !isNaN(Date.parse(value))) {
+      return new Date(value).toLocaleString();
+    }
+    
+    return value.toString();
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h1 className="text-2xl font-bold text-gray-800">
             {customQueryMode ? 'SQL Query Results' : 'Patient Records'}
           </h1>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setCustomQueryMode(!customQueryMode)}
               className={`px-4 py-2 rounded-md ${
@@ -74,14 +102,19 @@ const PatientSql = () => {
               disabled={loading}
               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
             >
-              {loading ? 'Loading...' : 'Refresh'}
+              {loading ? (
+                <>
+                  <span className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></span>
+                  Loading...
+                </>
+              ) : 'Refresh'}
             </button>
           </div>
         </div>
 
         {customQueryMode && (
           <form onSubmit={handleQuerySubmit} className="mb-6">
-            <div className="flex gap-2">
+            <div className="flex flex-col md:flex-row gap-2">
               <textarea
                 value={sqlQuery}
                 onChange={(e) => setSqlQuery(e.target.value)}
@@ -100,8 +133,8 @@ const PatientSql = () => {
         )}
 
         {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-            <p className="font-mono text-sm">{error}</p>
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+            <p className="font-mono text-sm break-all">{error}</p>
           </div>
         )}
 
@@ -114,31 +147,29 @@ const PatientSql = () => {
             No records found. {customQueryMode && "Try a different query."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
+          <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {patients[0] && Object.keys(patients[0]).map((key) => (
+                  {getColumns().map((key) => (
                     <th 
                       key={key}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      {key}
+                      {key.replace(/_/g, ' ')}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {patients.map((patient, index) => (
                   <tr key={index} className="hover:bg-gray-50">
-                    {Object.values(patient).map((value, i) => (
+                    {getColumns().map((key) => (
                       <td 
-                        key={i}
+                        key={`${index}-${key}`}
                         className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
                       >
-                        {typeof value === 'string' && value.includes('T') 
-                          ? new Date(value).toLocaleString() 
-                          : value || '-'}
+                        {formatValue(patient[key as keyof Patient])}
                       </td>
                     ))}
                   </tr>

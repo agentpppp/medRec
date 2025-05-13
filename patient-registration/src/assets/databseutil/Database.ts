@@ -6,11 +6,14 @@ let db: PGliteWorker | null = null
 const creationschema = async (database: PGliteWorker) => {
   await database.query(`
     CREATE TABLE IF NOT EXISTS patients (
-      id SERIAL PRIMARY KEY,
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
        email TEXT,
       age TEXT NOT NULL,
       phone TEXT,
+      gender TEXT,
+      address TEXT,
+      emergencyContact TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -45,20 +48,26 @@ export const registation = async (patientData: any): Promise<any> => {
  email,
     age,
     phone,
+    gender ,
+    address ,
+    emergencyContact
   
   } = patientData;
 
   const result = await database.query(
     `INSERT INTO patients 
-      (name,email,age,phone) 
+      (name,email,age,phone,gender,address,emergencyContact) 
      VALUES 
-      ($1, $2, $3, $4)
+      ($1, $2, $3, $4,$5,$6,$7)
      RETURNING id`,
     [
       name,
       email || null,
       age,
       phone || null,
+      gender || null,
+      address|| null,
+      emergencyContact||null
     ]
   );
 
